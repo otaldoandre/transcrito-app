@@ -170,7 +170,7 @@ function App() {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            VersiCopy
+            Transcrito
           </h1>
           <p className="text-gray-600">
             Copie versículos da Bíblia de forma simples
@@ -272,37 +272,57 @@ function App() {
         </div>
 
         {/* Resultado */}
-        {verses.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Resultado</h2>
-              <button
-                onClick={copyToClipboard}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-              >
-                📋 Copiar Texto
-              </button>
-            </div>
-            
-            <div className={`grid gap-6 ${selectedTranslations.length > 1 ? 'md:grid-cols-2' : ''}`}>
-              {verses.map(({ translation, verses: verseList }) => (
-                <div key={translation} className="border-l-4 border-blue-500 pl-4">
-                  <h3 className="font-bold text-lg mb-3 text-blue-700">{translation}</h3>
-                  <div className="space-y-3">
-                    {verseList.map((verse, idx) => (
-                      <div key={idx} className="text-gray-700">
-                        <span className="font-semibold text-sm text-gray-500">
-                          {verse.reference}
-                        </span>
-                        <p className="mt-1">{verse.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+{verses.length > 0 && (
+  <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xl font-bold text-gray-900">Resultado</h2>
+      <button
+        onClick={copyToClipboard}
+        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+      >
+        📋 Copiar Todas
+      </button>
+    </div>
+    
+    <div className={`grid gap-6 ${
+      selectedTranslations.length === 1 ? 'grid-cols-1' :
+      selectedTranslations.length === 2 ? 'md:grid-cols-2' :
+      selectedTranslations.length === 3 ? 'md:grid-cols-3' :
+      'md:grid-cols-2 lg:grid-cols-4'
+    }`}>
+      {verses.map(({ translation, verses: verseList }) => (
+        <div key={translation} className="border-l-4 border-blue-500 pl-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-bold text-lg text-blue-700">{translation}</h3>
+            <button
+              onClick={() => {
+                let text = `${translation}\n`;
+                verseList.forEach(v => {
+                  text += `${v.reference} - ${v.text}\n`;
+                });
+                navigator.clipboard.writeText(text);
+                alert(`${translation} copiado!`);
+              }}
+              className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition"
+            >
+              📋
+            </button>
           </div>
-        )}
+          <div className="space-y-3">
+            {verseList.map((verse, idx) => (
+              <div key={idx} className="text-gray-700">
+                <span className="font-semibold text-sm text-gray-500">
+                  {verse.reference}
+                </span>
+                <p className="mt-1">{verse.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
