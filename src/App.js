@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import './App.css';
+import jsPDF from 'jspdf';
+
 
 import nvi from './data/pt-br/nvi.json';
 import acf from './data/pt-br/acf.json';
@@ -192,6 +194,77 @@ const exportToTXT = () => {
   URL.revokeObjectURL(url);
 };
 
+const exportToPDF = () => {
+  const doc = new jsPDF();
+  
+  let yPosition = 20;
+  const pageHeight = doc.internal.pageSize.height;
+  const margin = 20;
+  const lineHeight = 7;
+  const maxWidth = 170;
+  
+  verses.forEach(({ translation, verses: verseList }, translationIndex) => {
+    // Título da tradução
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    
+    // Verifica se precisa nova página
+    if (yPosition + 20 > pageHeight - margin) {
+      doc.addPage();
+      yPosition = 20;
+    }
+    
+    doc.text(translation, margin, yPosition);
+    yPosition += 10;
+    
+    // Linha separadora
+    doc.setLineWidth(0.5);
+    doc.line(margin, yPosition, margin + maxWidth, yPosition);
+    yPosition += 8;
+    
+    // Versículos
+    doc.setFontSize(10);
+    
+    verseList.forEach(verse => {
+      // Referência (negrito)
+      doc.setFont(undefined, 'bold');
+      
+      // Verifica espaço
+      if (yPosition + lineHeight > pageHeight - margin) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      doc.text(verse.reference, margin, yPosition);
+      yPosition += lineHeight;
+      
+      // Texto do versículo (normal)
+      doc.setFont(undefined, 'normal');
+      
+      // Quebra texto em múltiplas linhas
+      const lines = doc.splitTextToSize(verse.text, maxWidth);
+      
+      lines.forEach(line => {
+        // Verifica espaço
+        if (yPosition + lineHeight > pageHeight - margin) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.text(line, margin, yPosition);
+        yPosition += lineHeight;
+      });
+       // Espaço entre versículos
+      yPosition += 3;
+    });
+    // Espaço entre traduções
+    yPosition += 10; 
+  });
+  
+  // Download
+  doc.save(`versiculos-${selectedBook || 'biblia'}.pdf`);
+};
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -309,13 +382,19 @@ const exportToTXT = () => {
       onClick={exportToTXT}
       className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
     >
-      📄 Baixar TXT
+      📄 TXT
+    </button>
+    <button
+      onClick={exportToPDF}
+      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+    >
+      📕 PDF
     </button>
     <button
       onClick={copyToClipboard}
       className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
     >
-      📋 Copiar Todas
+      📋 Copiar
     </button>
   </div>
 </div>
