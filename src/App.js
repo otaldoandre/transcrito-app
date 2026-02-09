@@ -164,6 +164,34 @@ function App() {
     alert('Versículos copiados!');
   };
 
+const exportToTXT = () => {
+  let text = '';
+  
+  verses.forEach(({ translation, verses: verseList }) => {
+    text += `${translation}\n`;
+    text += '='.repeat(50) + '\n\n';
+    
+    verseList.forEach(v => {
+      text += `${v.reference}\n${v.text}\n\n`;
+    });
+    
+    text += '\n';
+  });
+  
+  // Cria blob
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  
+  // Download
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `versiculos-${selectedBook || 'biblia'}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -275,14 +303,22 @@ function App() {
 {verses.length > 0 && (
   <div className="bg-white rounded-lg shadow-md p-6">
     <div className="flex justify-between items-center mb-4">
-      <h2 className="text-xl font-bold text-gray-900">Resultado</h2>
-      <button
-        onClick={copyToClipboard}
-        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-      >
-        📋 Copiar Todas
-      </button>
-    </div>
+  <h2 className="text-xl font-bold text-gray-900">Resultado</h2>
+  <div className="flex gap-2">
+    <button
+      onClick={exportToTXT}
+      className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
+    >
+      📄 Baixar TXT
+    </button>
+    <button
+      onClick={copyToClipboard}
+      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+    >
+      📋 Copiar Todas
+    </button>
+  </div>
+</div>
     
     <div className={`grid gap-6 ${
       selectedTranslations.length === 1 ? 'grid-cols-1' :
