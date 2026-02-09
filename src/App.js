@@ -2,7 +2,6 @@ import { useState } from 'react';
 import './App.css';
 import jsPDF from 'jspdf';
 
-
 import nvi from './data/pt-br/nvi.json';
 import acf from './data/pt-br/acf.json';
 import aa from './data/pt-br/aa.json';
@@ -91,6 +90,14 @@ function App() {
   const [referenceStart, setReferenceStart] = useState('1:1');
   const [referenceEnd, setReferenceEnd] = useState('1:1');
   const [verses, setVerses] = useState([]);
+  
+  // Display settings
+  const [displaySettings, setDisplaySettings] = useState({
+    fontSize: 16,
+    lineHeight: 1.6,
+    textAlign: 'left',
+    showVerseNumbers: true
+  });
 
   const parseReference = (ref) => {
     const [chapter, verse] = ref.split(':').map(n => parseInt(n) || 1);
@@ -118,7 +125,9 @@ function App() {
           if (chapter[v]) {
             verseList.push({
               reference: `${BOOK_NAMES[selectedBook]} ${start.chapter}:${v + 1}`,
-              text: chapter[v]
+              text: chapter[v],
+              chapter: start.chapter,
+              verse: v + 1
             });
           }
         }
@@ -137,7 +146,9 @@ function App() {
             if (chapter[v]) {
               verseList.push({
                 reference: `${BOOK_NAMES[selectedBook]} ${c}:${v + 1}`,
-                text: chapter[v]
+                text: chapter[v],
+                chapter: c,
+                verse: v + 1
               });
             }
           }
@@ -166,104 +177,92 @@ function App() {
     alert('Versículos copiados!');
   };
 
-const exportToTXT = () => {
-  let text = '';
-  
-  verses.forEach(({ translation, verses: verseList }) => {
-    text += `${translation}\n`;
-    text += '='.repeat(50) + '\n\n';
+  const exportToTXT = () => {
+    let text = '';
     
-    verseList.forEach(v => {
-      text += `${v.reference}\n${v.text}\n\n`;
+    verses.forEach(({ translation, verses: verseList }) => {
+      text += `${translation}\n`;
+      text += '='.repeat(50) + '\n\n';
+      
+      verseList.forEach(v => {
+        text += `${v.reference}\n${v.text}\n\n`;
+      });
+      
+      text += '\n';
     });
     
-    text += '\n';
-  });
-  
-  // Cria blob
-  const blob = new Blob([text], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  
-  // Download
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `versiculos-${selectedBook || 'biblia'}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `versiculos-${selectedBook || 'biblia'}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
-const exportToPDF = () => {
-  const doc = new jsPDF();
-  
-  let yPosition = 20;
-  const pageHeight = doc.internal.pageSize.height;
-  const margin = 20;
-  const lineHeight = 7;
-  const maxWidth = 170;
-  
-  verses.forEach(({ translation, verses: verseList }, translationIndex) => {
-    // Título da tradução
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
+  const exportToPDF = () => {
+    const doc = new jsPDF();
     
-    // Verifica se precisa nova página
-    if (yPosition + 20 > pageHeight - margin) {
-      doc.addPage();
-      yPosition = 20;
-    }
+    let yPosition = 20;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 20;
+    const lineHeight = 7;
+    const maxWidth = 170;
     
-    doc.text(translation, margin, yPosition);
-    yPosition += 10;
-    
-    // Linha separadora
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPosition, margin + maxWidth, yPosition);
-    yPosition += 8;
-    
-    // Versículos
-    doc.setFontSize(10);
-    
-    verseList.forEach(verse => {
-      // Referência (negrito)
+    verses.forEach(({ translation, verses: verseList }) => {
+      doc.setFontSize(14);
       doc.setFont(undefined, 'bold');
       
-      // Verifica espaço
-      if (yPosition + lineHeight > pageHeight - margin) {
+      if (yPosition + 20 > pageHeight - margin) {
         doc.addPage();
         yPosition = 20;
       }
       
-      doc.text(verse.reference, margin, yPosition);
-      yPosition += lineHeight;
+      doc.text(translation, margin, yPosition);
+      yPosition += 10;
       
-      // Texto do versículo (normal)
-      doc.setFont(undefined, 'normal');
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, margin + maxWidth, yPosition);
+      yPosition += 8;
       
-      // Quebra texto em múltiplas linhas
-      const lines = doc.splitTextToSize(verse.text, maxWidth);
+      doc.setFontSize(10);
       
-      lines.forEach(line => {
-        // Verifica espaço
+      verseList.forEach(verse => {
+        doc.setFont(undefined, 'bold');
+        
         if (yPosition + lineHeight > pageHeight - margin) {
           doc.addPage();
           yPosition = 20;
         }
         
-        doc.text(line, margin, yPosition);
+        doc.text(verse.reference, margin, yPosition);
         yPosition += lineHeight;
+        
+        doc.setFont(undefined, 'normal');
+        
+        const lines = doc.splitTextToSize(verse.text, maxWidth);
+        
+        lines.forEach(line => {
+          if (yPosition + lineHeight > pageHeight - margin) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          
+          doc.text(line, margin, yPosition);
+          yPosition += lineHeight;
+        });
+        
+        yPosition += 3;
       });
-       // Espaço entre versículos
-      yPosition += 3;
+      
+      yPosition += 10;
     });
-    // Espaço entre traduções
-    yPosition += 10; 
-  });
-  
-  // Download
-  doc.save(`versiculos-${selectedBook || 'biblia'}.pdf`);
-};
+    
+    doc.save(`versiculos-${selectedBook || 'biblia'}.pdf`);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
@@ -373,71 +372,221 @@ const exportToPDF = () => {
         </div>
 
         {/* Resultado */}
-{verses.length > 0 && (
-  <div className="bg-white rounded-lg shadow-md p-6">
-    <div className="flex justify-between items-center mb-4">
-  <h2 className="text-xl font-bold text-gray-900">Resultado</h2>
-  <div className="flex gap-2">
-    <button
-      onClick={exportToTXT}
-      className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
-    >
-      📄 TXT
-    </button>
-    <button
-      onClick={exportToPDF}
-      className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-    >
-      📕 PDF
-    </button>
-    <button
-      onClick={copyToClipboard}
-      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-    >
-      📋 Copiar
-    </button>
-  </div>
-</div>
-    
-    <div className={`grid gap-6 ${
-      selectedTranslations.length === 1 ? 'grid-cols-1' :
-      selectedTranslations.length === 2 ? 'md:grid-cols-2' :
-      selectedTranslations.length === 3 ? 'md:grid-cols-3' :
-      'md:grid-cols-2 lg:grid-cols-4'
-    }`}>
-      {verses.map(({ translation, verses: verseList }) => (
-        <div key={translation} className="border-l-4 border-blue-500 pl-4">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-bold text-lg text-blue-700">{translation}</h3>
-            <button
-              onClick={() => {
-                let text = `${translation}\n`;
-                verseList.forEach(v => {
-                  text += `${v.reference} - ${v.text}\n`;
-                });
-                navigator.clipboard.writeText(text);
-                alert(`${translation} copiado!`);
-              }}
-              className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition"
-            >
-              📋
-            </button>
-          </div>
-          <div className="space-y-3">
-            {verseList.map((verse, idx) => (
-              <div key={idx} className="text-gray-700">
-                <span className="font-semibold text-sm text-gray-500">
-                  {verse.reference}
-                </span>
-                <p className="mt-1">{verse.text}</p>
+        {verses.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            {/* Configurações de Exibição */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                Configurações de Exibição
+              </h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                
+                {/* Tamanho da Fonte */}
+                <div>
+                  <label className="block text-xs text-gray-600 mb-2">
+                    Tamanho da fonte
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setDisplaySettings({
+                        ...displaySettings,
+                        fontSize: Math.max(12, displaySettings.fontSize - 2)
+                      })}
+                      className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
+                    >
+                      -
+                    </button>
+                    <span className="text-sm font-medium w-12 text-center">
+                      {displaySettings.fontSize}px
+                    </span>
+                    <button
+                      onClick={() => setDisplaySettings({
+                        ...displaySettings,
+                        fontSize: Math.min(28, displaySettings.fontSize + 2)
+                      })}
+                      className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Espaçamento da Linha */}
+                <div>
+                  <label className="block text-xs text-gray-600 mb-2">
+                    Espaçamento
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setDisplaySettings({
+                        ...displaySettings,
+                        lineHeight: Math.max(1.2, displaySettings.lineHeight - 0.2)
+                      })}
+                      className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
+                    >
+                      -
+                    </button>
+                    <span className="text-sm font-medium w-12 text-center">
+                      {displaySettings.lineHeight.toFixed(1)}
+                    </span>
+                    <button
+                      onClick={() => setDisplaySettings({
+                        ...displaySettings,
+                        lineHeight: Math.min(2.5, displaySettings.lineHeight + 0.2)
+                      })}
+                      className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-lg font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Alinhamento */}
+                <div>
+                  <label className="block text-xs text-gray-600 mb-2">
+                    Alinhamento
+                  </label>
+                  <select
+                    value={displaySettings.textAlign}
+                    onChange={(e) => setDisplaySettings({
+                      ...displaySettings,
+                      textAlign: e.target.value
+                    })}
+                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                  >
+                    <option value="left">Esquerda</option>
+                    <option value="center">Centro</option>
+                    <option value="justify">Justificado</option>
+                  </select>
+                </div>
+                
+                {/* Mostrar Números */}
+                <div>
+                  <label className="block text-xs text-gray-600 mb-2">
+                    Números
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={displaySettings.showVerseNumbers}
+                      onChange={(e) => setDisplaySettings({
+                        ...displaySettings,
+                        showVerseNumbers: e.target.checked
+                      })}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Mostrar
+                    </span>
+                  </label>
+                </div>
+                
               </div>
-            ))}
+            </div>
+
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Resultado</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={exportToTXT}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition"
+                >
+                  📄 TXT
+                </button>
+                <button
+                  onClick={exportToPDF}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+                >
+                  📕 PDF
+                </button>
+                <button
+                  onClick={copyToClipboard}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                >
+                  📋 Copiar
+                </button>
+              </div>
+            </div>
+    
+            <div className={`grid gap-6 ${
+              selectedTranslations.length === 1 ? 'grid-cols-1' :
+              selectedTranslations.length === 2 ? 'md:grid-cols-2' :
+              selectedTranslations.length === 3 ? 'md:grid-cols-3' :
+              'md:grid-cols-2 lg:grid-cols-4'
+            }`}>
+              {verses.map(({ translation, verses: verseList }) => {
+                // Detecta se múltiplos capítulos
+                const hasMultipleChapters = verseList.length > 0 && 
+                  verseList[0].chapter !== verseList[verseList.length - 1].chapter;
+                
+                return (
+                  <div key={translation} className="border-l-4 border-blue-500 pl-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="font-bold text-lg text-blue-700">{translation}</h3>
+                      <button
+                        onClick={() => {
+                          let text = `${translation}\n`;
+                          verseList.forEach(v => {
+                            text += `${v.reference} - ${v.text}\n`;
+                          });
+                          navigator.clipboard.writeText(text);
+                          alert(`${translation} copiado!`);
+                        }}
+                        className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition"
+                      >
+                        📋
+                      </button>
+                    </div>
+                    
+                    <div 
+                      className="space-y-3"
+                      style={{
+                        fontSize: `${displaySettings.fontSize}px`,
+                        lineHeight: displaySettings.lineHeight,
+                        textAlign: displaySettings.textAlign
+                      }}
+                    >
+                      {verseList.map((verse, idx) => {
+                        // Verifica se é início de novo capítulo
+                        const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
+                        
+                        return (
+                          <div key={idx} className="text-gray-700">
+                            {/* Cabeçalho de capítulo (se múltiplos capítulos E novo capítulo) */}
+                            {hasMultipleChapters && isNewChapter && (
+                              <h4 className="font-bold text-gray-800 mt-4 mb-2">
+                                {BOOK_NAMES[selectedBook]} {verse.chapter}
+                              </h4>
+                            )}
+                            
+                            {/* Referência completa (se showVerseNumbers E capítulo único) */}
+                            {displaySettings.showVerseNumbers && !hasMultipleChapters && (
+                              <span className="font-semibold text-sm text-gray-500 block mb-1">
+                                {verse.reference}
+                              </span>
+                            )}
+                            
+                            {/* Texto do versículo */}
+                            <p>
+                              {/* Número do verso inline (se showVerseNumbers E múltiplos capítulos) */}
+                              {displaySettings.showVerseNumbers && hasMultipleChapters && (
+                                <sup className="text-gray-500 mr-1 font-semibold">
+                                  {verse.verse}
+                                </sup>
+                              )}
+                              {verse.text}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
+        )}
       </div>
     </div>
   );
