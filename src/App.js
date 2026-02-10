@@ -93,11 +93,12 @@ function App() {
   
   // Display settings
   const [displaySettings, setDisplaySettings] = useState({
-    fontSize: 16,
-    lineHeight: 1.6,
-    textAlign: 'left',
-    showVerseNumbers: true
-  });
+  fontSize: 16,
+  lineHeight: 1.6,
+  textAlign: 'left',
+  showVerseNumbers: true,
+  verseNumberFormat: 'number' // 'full', 'number', 'none'
+});
 
   const parseReference = (ref) => {
     const [chapter, verse] = ref.split(':').map(n => parseInt(n) || 1);
@@ -463,24 +464,22 @@ function App() {
                 
                 {/* Mostrar Números */}
                 <div>
-                  <label className="block text-xs text-gray-600 mb-2">
-                    Números
-                  </label>
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={displaySettings.showVerseNumbers}
-                      onChange={(e) => setDisplaySettings({
-                        ...displaySettings,
-                        showVerseNumbers: e.target.checked
-                      })}
-                      className="mr-2"
-                    />
-                    <span className="text-sm text-gray-700">
-                      Mostrar
-                    </span>
-                  </label>
-                </div>
+  <label className="block text-xs text-gray-600 mb-2">
+    Referência
+  </label>
+  <select
+    value={displaySettings.verseNumberFormat}
+    onChange={(e) => setDisplaySettings({
+      ...displaySettings,
+      verseNumberFormat: e.target.value
+    })}
+    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+  >
+    <option value="full">Completa (João 3:16)</option>
+    <option value="number">Número (¹⁶)</option>
+    <option value="none">Ocultar</option>
+  </select>
+</div>
                 
               </div>
             </div>
@@ -540,47 +539,47 @@ function App() {
                     </div>
                     
                     <div 
-                      className="space-y-3"
-                      style={{
-                        fontSize: `${displaySettings.fontSize}px`,
-                        lineHeight: displaySettings.lineHeight,
-                        textAlign: displaySettings.textAlign
-                      }}
-                    >
-                      {verseList.map((verse, idx) => {
-                        // Verifica se é início de novo capítulo
-                        const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
-                        
-                        return (
-                          <div key={idx} className="text-gray-700">
-                            {/* Cabeçalho de capítulo (se múltiplos capítulos E novo capítulo) */}
-                            {hasMultipleChapters && isNewChapter && (
-                              <h4 className="font-bold text-gray-800 mt-4 mb-2">
-                                {BOOK_NAMES[selectedBook]} {verse.chapter}
-                              </h4>
-                            )}
-                            
-                            {/* Referência completa (se showVerseNumbers E capítulo único) */}
-                            {displaySettings.showVerseNumbers && !hasMultipleChapters && (
-                              <span className="font-semibold text-sm text-gray-500 block mb-1">
-                                {verse.reference}
-                              </span>
-                            )}
-                            
-                            {/* Texto do versículo */}
-                            <p>
-                              {/* Número do verso inline (se showVerseNumbers E múltiplos capítulos) */}
-                              {displaySettings.showVerseNumbers && hasMultipleChapters && (
-                                <sup className="text-gray-500 mr-1 font-semibold">
-                                  {verse.verse}
-                                </sup>
-                              )}
-                              {verse.text}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
+  className="space-y-3"
+  style={{
+    fontSize: `${displaySettings.fontSize}px`,
+    lineHeight: displaySettings.lineHeight,
+    textAlign: displaySettings.textAlign
+  }}
+>
+  {verseList.map((verse, idx) => {
+    // Verifica se é início de novo capítulo
+    const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
+    
+    return (
+      <div key={idx} className="text-gray-700">
+        {/* Cabeçalho de capítulo (se múltiplos capítulos E novo capítulo) */}
+        {hasMultipleChapters && isNewChapter && (
+          <h4 className="font-bold text-gray-800 mt-4 mb-2">
+            {BOOK_NAMES[selectedBook]} {verse.chapter}
+          </h4>
+        )}
+        
+        {/* FORMATO: COMPLETA (referência completa em linha separada) */}
+        {displaySettings.verseNumberFormat === 'full' && (
+          <span className="font-semibold text-sm text-gray-500 block mb-1">
+            {verse.reference}
+          </span>
+        )}
+        
+        {/* Texto do versículo */}
+        <p>
+          {/* FORMATO: NUMBER (número superscript inline) */}
+          {displaySettings.verseNumberFormat === 'number' && (
+            <sup className="text-gray-500 mr-1 font-semibold">
+              {verse.verse}
+            </sup>
+          )}
+          {verse.text}
+        </p>
+      </div>
+    );
+  })}
+</div>
                   </div>
                 );
               })}
