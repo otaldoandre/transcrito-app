@@ -96,8 +96,8 @@ function App() {
   fontSize: 16,
   lineHeight: 1.6,
   textAlign: 'left',
-  showVerseNumbers: true,
-  verseNumberFormat: 'number' // 'full', 'number', 'none'
+  verseNumberFormat: 'number',
+  layout: 'columns' 
 });
 
   const parseReference = (ref) => {
@@ -461,6 +461,26 @@ function App() {
                     <option value="justify">Justificado</option>
                   </select>
                 </div>
+
+                
+		
+		{/* Layout */}
+<div>
+  <label className="block text-xs text-gray-600 mb-2">
+    Layout
+  </label>
+  <select
+    value={displaySettings.layout}
+    onChange={(e) => setDisplaySettings({
+      ...displaySettings,
+      layout: e.target.value
+    })}
+    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+  >
+    <option value="columns">Colunas</option>
+    <option value="parallel">Linhas Paralelas</option>
+  </select>
+</div>
                 
                 {/* Mostrar Números */}
                 <div>
@@ -508,82 +528,157 @@ function App() {
               </div>
             </div>
     
-            <div className={`grid gap-6 ${
-              selectedTranslations.length === 1 ? 'grid-cols-1' :
-              selectedTranslations.length === 2 ? 'md:grid-cols-2' :
-              selectedTranslations.length === 3 ? 'md:grid-cols-3' :
-              'md:grid-cols-2 lg:grid-cols-4'
-            }`}>
+{/* LAYOUT: COLUNAS */}
+{displaySettings.layout === 'columns' && (
+  <div className={`grid gap-6 ${
+    selectedTranslations.length === 1 ? 'grid-cols-1' :
+    selectedTranslations.length === 2 ? 'md:grid-cols-2' :
+    selectedTranslations.length === 3 ? 'md:grid-cols-3' :
+    'md:grid-cols-2 lg:grid-cols-4'
+  }`}>
+    {verses.map(({ translation, verses: verseList }) => {
+      const hasMultipleChapters = verseList.length > 0 && 
+        verseList[0].chapter !== verseList[verseList.length - 1].chapter;
+      
+      return (
+        <div key={translation} className="border-l-4 border-blue-500 pl-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-bold text-lg text-blue-700">{translation}</h3>
+            <button
+              onClick={() => {
+                let text = `${translation}\n`;
+                verseList.forEach(v => {
+                  text += `${v.reference} - ${v.text}\n`;
+                });
+                navigator.clipboard.writeText(text);
+                alert(`${translation} copiado!`);
+              }}
+              className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition"
+            >
+              📋
+            </button>
+          </div>
+          
+          <div 
+            className="space-y-3"
+            style={{
+              fontSize: `${displaySettings.fontSize}px`,
+              lineHeight: displaySettings.lineHeight,
+              textAlign: displaySettings.textAlign
+            }}
+          >
+            {verseList.map((verse, idx) => {
+              const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
+              
+              return (
+                <div key={idx} className="text-gray-700">
+                  {hasMultipleChapters && isNewChapter && (
+                    <h4 className="font-bold text-gray-800 mt-4 mb-2">
+                      {BOOK_NAMES[selectedBook]} {verse.chapter}
+                    </h4>
+                  )}
+                  
+                  {displaySettings.verseNumberFormat === 'full' && (
+                    <span className="font-semibold text-sm text-gray-500 block mb-1">
+                      {verse.reference}
+                    </span>
+                  )}
+                  
+                  <p>
+                    {displaySettings.verseNumberFormat === 'number' && (
+                      <sup className="text-gray-500 mr-1 font-semibold">
+                        {verse.verse}
+                      </sup>
+                    )}
+                    {verse.text}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+)}
+
+{/* LAYOUT: LINHAS PARALELAS */}
+{displaySettings.layout === 'parallel' && verses.length > 0 && (
+  <div>
+    {/* Cabeçalhos das traduções */}
+    <div className={`grid gap-4 mb-4 ${
+      selectedTranslations.length === 1 ? 'grid-cols-1' :
+      selectedTranslations.length === 2 ? 'grid-cols-2' :
+      selectedTranslations.length === 3 ? 'grid-cols-3' :
+      'grid-cols-4'
+    }`}>
+      {verses.map(({ translation }) => (
+        <div key={translation} className="font-bold text-lg text-blue-700 text-center border-b-2 border-blue-500 pb-2">
+          {translation}
+        </div>
+      ))}
+    </div>
+    
+    {/* Versículos linha por linha */}
+    <div className="space-y-4">
+      {verses[0].verses.map((_, verseIdx) => {
+        const verse = verses[0].verses[verseIdx];
+        const isNewChapter = verseIdx === 0 || 
+          verse.chapter !== verses[0].verses[verseIdx - 1].chapter;
+        
+        return (
+          <div key={verseIdx}>
+            {/* Cabeçalho de capítulo (se múltiplos capítulos) */}
+            {isNewChapter && verses[0].verses.length > 1 && 
+             verses[0].verses[0].chapter !== verses[0].verses[verses[0].verses.length - 1].chapter && (
+              <h4 className="font-bold text-gray-800 mb-3 text-center">
+                {BOOK_NAMES[selectedBook]} {verse.chapter}
+              </h4>
+            )}
+            
+            {/* Grid com versículos alinhados */}
+            <div 
+              className={`grid gap-4 items-start ${
+                selectedTranslations.length === 1 ? 'grid-cols-1' :
+                selectedTranslations.length === 2 ? 'grid-cols-2' :
+                selectedTranslations.length === 3 ? 'grid-cols-3' :
+                'grid-cols-4'
+              }`}
+              style={{
+                fontSize: `${displaySettings.fontSize}px`,
+                lineHeight: displaySettings.lineHeight,
+                textAlign: displaySettings.textAlign
+              }}
+            >
               {verses.map(({ translation, verses: verseList }) => {
-                // Detecta se múltiplos capítulos
-                const hasMultipleChapters = verseList.length > 0 && 
-                  verseList[0].chapter !== verseList[verseList.length - 1].chapter;
+                const currentVerse = verseList[verseIdx];
                 
                 return (
-                  <div key={translation} className="border-l-4 border-blue-500 pl-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="font-bold text-lg text-blue-700">{translation}</h3>
-                      <button
-                        onClick={() => {
-                          let text = `${translation}\n`;
-                          verseList.forEach(v => {
-                            text += `${v.reference} - ${v.text}\n`;
-                          });
-                          navigator.clipboard.writeText(text);
-                          alert(`${translation} copiado!`);
-                        }}
-                        className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition"
-                      >
-                        📋
-                      </button>
-                    </div>
+                  <div key={translation} className="p-3 bg-gray-50 rounded border border-gray-200">
+                    {displaySettings.verseNumberFormat === 'full' && (
+                      <span className="font-semibold text-xs text-gray-500 block mb-1">
+                        {currentVerse.reference}
+                      </span>
+                    )}
                     
-                    <div 
-  className="space-y-3"
-  style={{
-    fontSize: `${displaySettings.fontSize}px`,
-    lineHeight: displaySettings.lineHeight,
-    textAlign: displaySettings.textAlign
-  }}
->
-  {verseList.map((verse, idx) => {
-    // Verifica se é início de novo capítulo
-    const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
-    
-    return (
-      <div key={idx} className="text-gray-700">
-        {/* Cabeçalho de capítulo (se múltiplos capítulos E novo capítulo) */}
-        {hasMultipleChapters && isNewChapter && (
-          <h4 className="font-bold text-gray-800 mt-4 mb-2">
-            {BOOK_NAMES[selectedBook]} {verse.chapter}
-          </h4>
-        )}
-        
-        {/* FORMATO: COMPLETA (referência completa em linha separada) */}
-        {displaySettings.verseNumberFormat === 'full' && (
-          <span className="font-semibold text-sm text-gray-500 block mb-1">
-            {verse.reference}
-          </span>
-        )}
-        
-        {/* Texto do versículo */}
-        <p>
-          {/* FORMATO: NUMBER (número superscript inline) */}
-          {displaySettings.verseNumberFormat === 'number' && (
-            <sup className="text-gray-500 mr-1 font-semibold">
-              {verse.verse}
-            </sup>
-          )}
-          {verse.text}
-        </p>
-      </div>
-    );
-  })}
-</div>
+                    <p className="text-gray-700">
+                      {displaySettings.verseNumberFormat === 'number' && (
+                        <sup className="text-gray-500 mr-1 font-semibold">
+                          {currentVerse.verse}
+                        </sup>
+                      )}
+                      {currentVerse.text}
+                    </p>
                   </div>
                 );
               })}
             </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
           </div>
         )}
       </div>
