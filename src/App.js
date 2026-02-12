@@ -99,7 +99,8 @@ function App() {
   textAlign: 'left',
   verseNumberFormat: 'number',
   layout: 'columns',
-  textFlow: 'paragraph'
+  textFlow: 'paragraph',
+  pdfMode: 'optimized' // 'optimized' ou 'custom'
 });
 
   const parseReference = (ref) => {
@@ -167,15 +168,111 @@ function App() {
     setVerses(result);
   };
 
+  // Função auxiliar para formatar verso com base nas configurações de exibição
+  const formatVerseText = (verse) => {
+    let result = '';
+    
+    if (displaySettings.verseNumberFormat === 'full') {
+      result += verse.reference + '\n';
+    } else if (displaySettings.verseNumberFormat === 'number') {
+      result += verse.verse + ' ';
+    }
+    
+    result += verse.text;
+    return result;
+  };
+
+  // Função auxiliar para gerar texto com fluxo e capítulos configuráveis
+  const generateVerseListText = (verseList, separator = '\n', includeChapters = true) => {
+    const hasMultipleChapters = verseList.length > 0 && 
+      verseList[0].chapter !== verseList[verseList.length - 1].chapter;
+    
+    let result = [];
+    
+    verseList.forEach((verse, idx) => {
+      const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
+      
+      // Adiciona cabeçalho de capítulo se necessário
+      if (includeChapters && hasMultipleChapters && isNewChapter) {
+        result.push(`${BOOK_NAMES[selectedBook]} ${verse.chapter}`);
+        result.push('---');
+      }
+      
+      if (displaySettings.textFlow === 'continuous') {
+        // Texto corrido - retorna sem quebra
+        if (displaySettings.verseNumberFormat === 'full') {
+          result.push(`${verse.reference} ${verse.text}`);
+        } else if (displaySettings.verseNumberFormat === 'number') {
+          result.push(`${verse.verse} ${verse.text}`);
+        } else {
+          result.push(verse.text);
+        }
+      } else {
+        // Verso por verso
+        result.push(formatVerseText(verse));
+      }
+    });
+    
+    return displaySettings.textFlow === 'continuous' 
+      ? result.join(' ')
+      : result.join(separator);
+  };
+
+  // Função para gerar conteúdo em formato paralelo
+  const generateParallelText = () => {
+    let text = '';
+    const firstVerseList = verses[0].verses;
+    const hasMultipleChapters = firstVerseList.length > 0 && 
+      firstVerseList[0].chapter !== firstVerseList[firstVerseList.length - 1].chapter;
+    
+    // Cabeçalhos das traduções
+    text += verses.map(v => v.translation).join(' | ') + '\n';
+    text += Array(verses.length).fill('---').join(' | ') + '\n\n';
+    
+    // Versículos linha por linha
+    firstVerseList.forEach((verse, idx) => {
+      const isNewChapter = idx === 0 || verse.chapter !== firstVerseList[idx - 1].chapter;
+      
+      if (hasMultipleChapters && isNewChapter) {
+        text += `${BOOK_NAMES[selectedBook]} ${verse.chapter}\n`;
+        text += '='.repeat(80) + '\n\n';
+      }
+      
+      // Monta linha com versículos de todas as traduções
+      const line = verses.map(({ verses: verseList }) => {
+        const currentVerse = verseList[idx];
+        let verseText = '';
+        
+        if (displaySettings.verseNumberFormat === 'full') {
+          verseText += currentVerse.reference + ' - ';
+        } else if (displaySettings.verseNumberFormat === 'number') {
+          verseText += `${currentVerse.verse} `;
+        }
+        
+        verseText += currentVerse.text;
+        return verseText;
+      }).join(' | ');
+      
+      text += line + '\n\n';
+    });
+    
+    return text;
+  };
+
   const copyToClipboard = () => {
     let text = '';
-    verses.forEach(({ translation, verses: verseList }) => {
-      text += `${translation}\n`;
-      verseList.forEach(v => {
-        text += `${v.reference} - ${v.text}\n`;
+    
+    if (displaySettings.layout === 'parallel') {
+      text = generateParallelText();
+    } else {
+      verses.forEach(({ translation, verses: verseList }) => {
+        text += `${translation}\n`;
+        text += '='.repeat(50) + '\n\n';
+        text += generateVerseListText(verseList, '\n', true);
+        text += '\n\n';
       });
-      text += '\n';
-    });
+    }
+    
     navigator.clipboard.writeText(text);
     alert('Versículos copiados!');
   };
@@ -183,16 +280,16 @@ function App() {
   const exportToTXT = () => {
     let text = '';
     
-    verses.forEach(({ translation, verses: verseList }) => {
-      text += `${translation}\n`;
-      text += '='.repeat(50) + '\n\n';
-      
-      verseList.forEach(v => {
-        text += `${v.reference}\n${v.text}\n\n`;
+    if (displaySettings.layout === 'parallel') {
+      text = generateParallelText();
+    } else {
+      verses.forEach(({ translation, verses: verseList }) => {
+        text += `${translation}\n`;
+        text += '='.repeat(50) + '\n\n';
+        text += generateVerseListText(verseList, '\n\n', true);
+        text += '\n\n';
       });
-      
-      text += '\n';
-    });
+    }
     
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -212,57 +309,192 @@ function App() {
     let yPosition = 20;
     const pageHeight = doc.internal.pageSize.height;
     const margin = 20;
-    const lineHeight = 7;
     const maxWidth = 170;
     
-    verses.forEach(({ translation, verses: verseList }) => {
-      doc.setFontSize(14);
+    // Usar configurações otimizadas ou customizadas
+    const pdfFontSize = displaySettings.pdfMode === 'optimized' ? 11 : displaySettings.fontSize * 0.6;
+    const pdfLineHeight = displaySettings.pdfMode === 'optimized' ? 6 : displaySettings.lineHeight * 2.5;
+    const pdfAlign = displaySettings.pdfMode === 'optimized' ? 'left' : displaySettings.textAlign;
+    
+    // Mapeamento de alinhamento (jsPDF suporta left, center, right)
+    const alignmentMap = {
+      'left': 'left',
+      'center': 'center',
+      'justify': 'left' // jsPDF não suporta justify nativamente, usar left
+    };
+    
+    if (displaySettings.layout === 'parallel') {
+      // Exportar layout paralelo
+      doc.setFontSize(12);
       doc.setFont(undefined, 'bold');
       
-      if (yPosition + 20 > pageHeight - margin) {
-        doc.addPage();
-        yPosition = 20;
-      }
-      
-      doc.text(translation, margin, yPosition);
-      yPosition += 10;
-      
-      doc.setLineWidth(0.5);
-      doc.line(margin, yPosition, margin + maxWidth, yPosition);
+      // Cabeçalhos
+      verses.forEach(({ translation }, idx) => {
+        const xPos = margin + (idx * 45);
+        doc.text(translation, xPos, yPosition, { align: 'center', maxWidth: 40 });
+      });
       yPosition += 8;
       
-      doc.setFontSize(10);
+      const firstVerseList = verses[0].verses;
+      const hasMultipleChapters = firstVerseList.length > 0 && 
+        firstVerseList[0].chapter !== firstVerseList[firstVerseList.length - 1].chapter;
       
-      verseList.forEach(verse => {
-        doc.setFont(undefined, 'bold');
+      doc.setFontSize(pdfFontSize);
+      doc.setFont(undefined, 'normal');
+      
+      // Versículos
+      firstVerseList.forEach((verse, versIdx) => {
+        const isNewChapter = versIdx === 0 || verse.chapter !== firstVerseList[versIdx - 1].chapter;
         
-        if (yPosition + lineHeight > pageHeight - margin) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        
-        doc.text(verse.reference, margin, yPosition);
-        yPosition += lineHeight;
-        
-        doc.setFont(undefined, 'normal');
-        
-        const lines = doc.splitTextToSize(verse.text, maxWidth);
-        
-        lines.forEach(line => {
-          if (yPosition + lineHeight > pageHeight - margin) {
+        if (hasMultipleChapters && isNewChapter) {
+          if (yPosition + 10 > pageHeight - margin) {
             doc.addPage();
             yPosition = 20;
           }
           
-          doc.text(line, margin, yPosition);
-          yPosition += lineHeight;
+          doc.setFont(undefined, 'bold');
+          doc.text(`${BOOK_NAMES[selectedBook]} ${verse.chapter}`, margin, yPosition);
+          doc.setFont(undefined, 'normal');
+          yPosition += 6;
+        }
+        
+        const maxLineHeight = verses.reduce((max, { verses: verseList }) => {
+          const currentVerse = verseList[versIdx];
+          let text = '';
+          
+          if (displaySettings.verseNumberFormat === 'full') {
+            text += currentVerse.reference + ' ';
+          } else if (displaySettings.verseNumberFormat === 'number') {
+            text += `${currentVerse.verse} `;
+          }
+          
+          text += currentVerse.text;
+          
+          const lines = doc.splitTextToSize(text, 42);
+          return Math.max(max, lines.length * (pdfLineHeight * 0.6));
+        }, 0);
+        
+        if (yPosition + maxLineHeight > pageHeight - margin) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        let maxY = yPosition;
+        
+        verses.forEach(({ verses: verseList }, transIdx) => {
+          const currentVerse = verseList[versIdx];
+          const xPos = margin + (transIdx * 45);
+          let text = '';
+          
+          if (displaySettings.verseNumberFormat === 'full') {
+            text += currentVerse.reference + ' ';
+          } else if (displaySettings.verseNumberFormat === 'number') {
+            text += `${currentVerse.verse} `;
+          }
+          
+          text += currentVerse.text;
+          
+          const lines = doc.splitTextToSize(text, 42);
+          lines.forEach((line, lineIdx) => {
+            doc.text(line, xPos, yPosition + (lineIdx * pdfLineHeight * 0.6), { 
+              align: 'left',
+              maxWidth: 42
+            });
+          });
+          
+          maxY = Math.max(maxY, yPosition + (lines.length * pdfLineHeight * 0.6));
         });
         
-        yPosition += 3;
+        yPosition = maxY + 2;
       });
-      
-      yPosition += 10;
-    });
+    } else {
+      // Exportar layout de colunas
+      verses.forEach(({ translation, verses: verseList }) => {
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        
+        if (yPosition + 20 > pageHeight - margin) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.text(translation, margin, yPosition);
+        yPosition += 10;
+        
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, margin + maxWidth, yPosition);
+        yPosition += 8;
+        
+        doc.setFontSize(pdfFontSize);
+        doc.setFont(undefined, 'normal');
+        
+        const hasMultipleChapters = verseList.length > 0 && 
+          verseList[0].chapter !== verseList[verseList.length - 1].chapter;
+        
+        if (displaySettings.textFlow === 'continuous') {
+          // Texto corrido
+          const continuousText = generateVerseListText(verseList, ' ', true);
+          const lines = doc.splitTextToSize(continuousText, maxWidth);
+          
+          lines.forEach(line => {
+            if (yPosition + pdfLineHeight > pageHeight - margin) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            
+            doc.text(line, margin, yPosition, { 
+              align: alignmentMap[pdfAlign],
+              maxWidth: maxWidth
+            });
+            yPosition += pdfLineHeight;
+          });
+        } else {
+          // Verso por verso
+          verseList.forEach((verse, idx) => {
+            const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
+            
+            if (hasMultipleChapters && isNewChapter) {
+              if (yPosition + 8 > pageHeight - margin) {
+                doc.addPage();
+                yPosition = 20;
+              }
+              
+              doc.setFont(undefined, 'bold');
+              doc.setFontSize(12);
+              doc.text(`${BOOK_NAMES[selectedBook]} ${verse.chapter}`, margin, yPosition);
+              doc.setFont(undefined, 'normal');
+              doc.setFontSize(pdfFontSize);
+              yPosition += 6;
+            }
+            
+            if (yPosition + pdfLineHeight > pageHeight - margin) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            
+            const formattedVerse = formatVerseText(verse);
+            const lines = doc.splitTextToSize(formattedVerse, maxWidth);
+            
+            lines.forEach(line => {
+              if (yPosition + pdfLineHeight > pageHeight - margin) {
+                doc.addPage();
+                yPosition = 20;
+              }
+              
+              doc.text(line, margin, yPosition, { 
+                align: alignmentMap[pdfAlign],
+                maxWidth: maxWidth
+              });
+              yPosition += pdfLineHeight;
+            });
+            
+            yPosition += 2;
+          });
+        }
+        
+        yPosition += 10;
+      });
+    }
     
     doc.save(`versiculos-${selectedBook || 'biblia'}.pdf`);
   };
@@ -539,6 +771,29 @@ function App() {
     <option value="none">Ocultar</option>
   </select>
 </div>
+
+{/* Modo PDF */}
+<div>
+  <label className="block text-xs text-gray-600 mb-2">
+    Modo PDF
+  </label>
+  <select
+    value={displaySettings.pdfMode}
+    onChange={(e) => setDisplaySettings({
+      ...displaySettings,
+      pdfMode: e.target.value
+    })}
+    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+  >
+    <option value="optimized">Otimizado (padrão)</option>
+    <option value="custom">Usar configurações de exibição</option>
+  </select>
+  <p className="text-xs text-gray-500 mt-1">
+    {displaySettings.pdfMode === 'optimized'
+      ? 'PDF com tamanho e espaçamento otimizados'
+      : 'PDF respeitando suas configurações de exibição'}
+  </p>
+</div>
                 
               </div>
             </div>
@@ -614,7 +869,7 @@ function App() {
                   return (
                     <div key={idx} className="text-gray-700">
                       {hasMultipleChapters && isNewChapter && (
-                        <h4 className="font-bold text-gray-800 mt-4 mb-2">
+                        <h4 className="font-bold text-gray-800 mb-3 text-center">
                           {BOOK_NAMES[selectedBook]} {verse.chapter}
                         </h4>
                       )}
