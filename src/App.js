@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import './App.css';
 import jsPDF from 'jspdf';
+import { Tooltip } from 'react-tooltip';
 
 import nvi from './data/pt-br/nvi.json';
 import acf from './data/pt-br/acf.json';
@@ -470,17 +471,28 @@ function App() {
   <label className="block text-xs text-gray-600 mb-2">
     Layout
   </label>
-  <select
-    value={displaySettings.layout}
-    onChange={(e) => setDisplaySettings({
-      ...displaySettings,
-      layout: e.target.value
-    })}
-    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+  <div 
+    data-tooltip-id="layout-tooltip"
+    data-tooltip-content={
+      displaySettings.layout === 'columns'
+        ? 'Ideal para visualizar múltiplas traduções lado a lado em colunas.'
+        : 'Ideal para comparar versículos linha por linha de múltiplas traduções.'
+    }
+    className="relative"
   >
-    <option value="columns">Colunas</option>
-    <option value="parallel">Linhas Paralelas</option>
-  </select>
+    <select
+      value={displaySettings.layout}
+      onChange={(e) => setDisplaySettings({
+        ...displaySettings,
+        layout: e.target.value
+      })}
+      className="w-full border border-gray-300 rounded px-2 py-1 text-sm cursor-help"
+    >
+      <option value="columns">Colunas</option>
+      <option value="parallel">Linhas Paralelas</option>
+    </select>
+  </div>
+  <Tooltip id="layout-tooltip" className="text-xs" style={{backgroundColor: '#374151', color: '#fff'}} />
 </div>
 
 {/* Fluxo do Texto*/}
