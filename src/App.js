@@ -97,7 +97,8 @@ function App() {
   lineHeight: 1.6,
   textAlign: 'left',
   verseNumberFormat: 'number',
-  layout: 'columns' 
+  layout: 'columns',
+  textFlow: 'paragraph'
 });
 
   const parseReference = (ref) => {
@@ -481,6 +482,24 @@ function App() {
     <option value="parallel">Linhas Paralelas</option>
   </select>
 </div>
+
+{/* Fluxo do Texto */}
+<div>
+  <label className="block text-xs text-gray-600 mb-2">
+    Fluxo do texto
+  </label>
+  <select
+    value={displaySettings.textFlow}
+    onChange={(e) => setDisplaySettings({
+      ...displaySettings,
+      textFlow: e.target.value
+    })}
+    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+  >
+    <option value="paragraph">Linha por linha</option>
+    <option value="continuous">Texto corrido</option>
+  </select>
+</div>
                 
                 {/* Mostrar Números */}
                 <div>
@@ -560,41 +579,82 @@ function App() {
           </div>
           
           <div 
-            className="space-y-3"
             style={{
               fontSize: `${displaySettings.fontSize}px`,
               lineHeight: displaySettings.lineHeight,
               textAlign: displaySettings.textAlign
             }}
           >
-            {verseList.map((verse, idx) => {
-              const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
-              
-              return (
-                <div key={idx} className="text-gray-700">
-                  {hasMultipleChapters && isNewChapter && (
-                    <h4 className="font-bold text-gray-800 mt-4 mb-2">
-                      {BOOK_NAMES[selectedBook]} {verse.chapter}
-                    </h4>
-                  )}
+            {/* FLUXO: LINHA POR LINHA */}
+            {displaySettings.textFlow === 'paragraph' && (
+              <div className="space-y-3">
+                {verseList.map((verse, idx) => {
+                  const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
                   
-                  {displaySettings.verseNumberFormat === 'full' && (
-                    <span className="font-semibold text-sm text-gray-500 block mb-1">
-                      {verse.reference}
+                  return (
+                    <div key={idx} className="text-gray-700">
+                      {hasMultipleChapters && isNewChapter && (
+                        <h4 className="font-bold text-gray-800 mt-4 mb-2">
+                          {BOOK_NAMES[selectedBook]} {verse.chapter}
+                        </h4>
+                      )}
+                      
+                      {displaySettings.verseNumberFormat === 'full' && (
+                        <span className="font-semibold text-sm text-gray-500 block mb-1">
+                          {verse.reference}
+                        </span>
+                      )}
+                      
+                      <p>
+                        {displaySettings.verseNumberFormat === 'number' && (
+                          <sup className="text-gray-500 mr-1 font-semibold">
+                            {verse.verse}
+                          </sup>
+                        )}
+                        {verse.text}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* FLUXO: TEXTO CORRIDO */}
+            {displaySettings.textFlow === 'continuous' && (
+              <div className="text-gray-700">
+                {verseList.map((verse, idx) => {
+                  const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
+                  
+                  return (
+                    <span key={idx}>
+                      {/* Cabeçalho de capítulo */}
+                      {hasMultipleChapters && isNewChapter && (
+                        <h4 className="font-bold text-gray-800 mt-4 mb-2 block">
+                          {BOOK_NAMES[selectedBook]} {verse.chapter}
+                        </h4>
+                      )}
+                      
+                      {/* Referência completa (se formato full) */}
+                      {displaySettings.verseNumberFormat === 'full' && (
+                        <span className="font-semibold text-sm text-gray-500">
+                          {verse.reference}{' '}
+                        </span>
+                      )}
+                      
+                      {/* Número do verso (se formato number) */}
+                      {displaySettings.verseNumberFormat === 'number' && (
+                        <sup className="text-gray-500 mr-1 font-semibold">
+                          {verse.verse}
+                        </sup>
+                      )}
+                      
+                      {/* Texto do versículo */}
+                      {verse.text}{' '}
                     </span>
-                  )}
-                  
-                  <p>
-                    {displaySettings.verseNumberFormat === 'number' && (
-                      <sup className="text-gray-500 mr-1 font-semibold">
-                        {verse.verse}
-                      </sup>
-                    )}
-                    {verse.text}
-                  </p>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       );
@@ -655,20 +715,42 @@ function App() {
                 
                 return (
                   <div key={translation} className="p-3 bg-gray-50 rounded border border-gray-200">
-                    {displaySettings.verseNumberFormat === 'full' && (
-                      <span className="font-semibold text-xs text-gray-500 block mb-1">
-                        {currentVerse.reference}
-                      </span>
+                    {/* FLUXO: LINHA POR LINHA */}
+                    {displaySettings.textFlow === 'paragraph' && (
+                      <>
+                        {displaySettings.verseNumberFormat === 'full' && (
+                          <span className="font-semibold text-xs text-gray-500 block mb-1">
+                            {currentVerse.reference}
+                          </span>
+                        )}
+                        
+                        <p className="text-gray-700">
+                          {displaySettings.verseNumberFormat === 'number' && (
+                            <sup className="text-gray-500 mr-1 font-semibold">
+                              {currentVerse.verse}
+                            </sup>
+                          )}
+                          {currentVerse.text}
+                        </p>
+                      </>
                     )}
                     
-                    <p className="text-gray-700">
-                      {displaySettings.verseNumberFormat === 'number' && (
-                        <sup className="text-gray-500 mr-1 font-semibold">
-                          {currentVerse.verse}
-                        </sup>
-                      )}
-                      {currentVerse.text}
-                    </p>
+                    {/* FLUXO: TEXTO CORRIDO */}
+                    {displaySettings.textFlow === 'continuous' && (
+                      <p className="text-gray-700">
+                        {displaySettings.verseNumberFormat === 'full' && (
+                          <span className="font-semibold text-xs text-gray-500">
+                            {currentVerse.reference}{' '}
+                          </span>
+                        )}
+                        {displaySettings.verseNumberFormat === 'number' && (
+                          <sup className="text-gray-500 mr-1 font-semibold">
+                            {currentVerse.verse}
+                          </sup>
+                        )}
+                        {currentVerse.text}
+                      </p>
+                    )}
                   </div>
                 );
               })}
