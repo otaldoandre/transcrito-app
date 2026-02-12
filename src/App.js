@@ -483,10 +483,13 @@ function App() {
   </select>
 </div>
 
-{/* Fluxo do Texto */}
+{/* Fluxo do Texto*/}
 <div>
   <label className="block text-xs text-gray-600 mb-2">
     Fluxo do texto
+    {displaySettings.layout === 'parallel' && (
+      <span className="text-xs text-gray-400 ml-1">(somente no layout Colunas)</span>
+    )}
   </label>
   <select
     value={displaySettings.textFlow}
@@ -494,7 +497,12 @@ function App() {
       ...displaySettings,
       textFlow: e.target.value
     })}
-    className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+    disabled={displaySettings.layout === 'parallel'}
+    className={`w-full border border-gray-300 rounded px-2 py-1 text-sm ${
+      displaySettings.layout === 'parallel' 
+        ? 'bg-gray-100 cursor-not-allowed opacity-60' 
+        : ''
+    }`}
   >
     <option value="paragraph">Linha por linha</option>
     <option value="continuous">Texto corrido</option>
