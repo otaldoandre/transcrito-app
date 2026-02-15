@@ -169,13 +169,22 @@ function App() {
   };
 
   // Função auxiliar para formatar verso com base nas configurações de exibição
+  // Converte número para superscript Unicode
+  const toSuperscript = (num) => {
+    const superscriptMap = {
+      '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+      '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
+    };
+    return num.toString().split('').map(digit => superscriptMap[digit] || digit).join('');
+  };
+
   const formatVerseText = (verse) => {
     let result = '';
     
     if (displaySettings.verseNumberFormat === 'full') {
       result += verse.reference + '\n';
     } else if (displaySettings.verseNumberFormat === 'number') {
-      result += verse.verse + ' ';
+      result += toSuperscript(verse.verse) + ' ';
     }
     
     result += verse.text;
@@ -188,22 +197,29 @@ function App() {
       verseList[0].chapter !== verseList[verseList.length - 1].chapter;
     
     let result = [];
+    let currentChapter = null;
     
     verseList.forEach((verse, idx) => {
-      const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
+      const isNewChapter = verse.chapter !== currentChapter;
       
       // Adiciona cabeçalho de capítulo se necessário
       if (includeChapters && hasMultipleChapters && isNewChapter) {
+        // Adiciona quebra antes do novo capítulo (exceto no primeiro)
+        if (currentChapter !== null) {
+          result.push('\n');
+        }
+        
         result.push(`${BOOK_NAMES[selectedBook]} ${verse.chapter}`);
-        result.push('---');
+        result.push('---\n');
+        currentChapter = verse.chapter;
       }
       
       if (displaySettings.textFlow === 'continuous') {
-        // Texto corrido - retorna sem quebra
+        // Texto corrido
         if (displaySettings.verseNumberFormat === 'full') {
           result.push(`${verse.reference} ${verse.text}`);
         } else if (displaySettings.verseNumberFormat === 'number') {
-          result.push(`${verse.verse} ${verse.text}`);
+          result.push(`${toSuperscript(verse.verse)} ${verse.text}`);
         } else {
           result.push(verse.text);
         }
@@ -229,13 +245,19 @@ function App() {
     text += verses.map(v => v.translation).join(' | ') + '\n';
     text += Array(verses.length).fill('---').join(' | ') + '\n\n';
     
+    let currentChapter = null;
+    
     // Versículos linha por linha
     firstVerseList.forEach((verse, idx) => {
-      const isNewChapter = idx === 0 || verse.chapter !== firstVerseList[idx - 1].chapter;
+      const isNewChapter = verse.chapter !== currentChapter;
       
       if (hasMultipleChapters && isNewChapter) {
+        if (currentChapter !== null) {
+          text += '\n';
+        }
         text += `${BOOK_NAMES[selectedBook]} ${verse.chapter}\n`;
         text += '='.repeat(80) + '\n\n';
+        currentChapter = verse.chapter;
       }
       
       // Monta linha com versículos de todas as traduções
@@ -246,7 +268,7 @@ function App() {
         if (displaySettings.verseNumberFormat === 'full') {
           verseText += currentVerse.reference + ' - ';
         } else if (displaySettings.verseNumberFormat === 'number') {
-          verseText += `${currentVerse.verse} `;
+          verseText += `${toSuperscript(currentVerse.verse)} `;
         }
         
         verseText += currentVerse.text;
@@ -412,86 +434,150 @@ function App() {
       verses.forEach(({ translation, verses: verseList }) => {
         doc.setFontSize(14);
         doc.setFont(undefined, 'bold');
-        
+
         if (yPosition + 20 > pageHeight - margin) {
           doc.addPage();
           yPosition = 20;
         }
-        
+
         doc.text(translation, margin, yPosition);
         yPosition += 10;
-        
+
         doc.setLineWidth(0.5);
         doc.line(margin, yPosition, margin + maxWidth, yPosition);
         yPosition += 8;
-        
+
         doc.setFontSize(pdfFontSize);
         doc.setFont(undefined, 'normal');
-        
+
         const hasMultipleChapters = verseList.length > 0 && 
           verseList[0].chapter !== verseList[verseList.length - 1].chapter;
-        
+
+        let currentChapter = null;
+
         if (displaySettings.textFlow === 'continuous') {
-          // Texto corrido
-          const continuousText = generateVerseListText(verseList, ' ', true);
-          const lines = doc.splitTextToSize(continuousText, maxWidth);
-          
-          lines.forEach(line => {
-            if (yPosition + pdfLineHeight > pageHeight - margin) {
-              doc.addPage();
-              yPosition = 20;
+          // Texto corrido - monta com capítulos separados
+          let textBlocks = [];
+          let currentBlock = '';
+
+          verseList.forEach((verse, idx) => {
+            const isNewChapter = verse.chapter !== currentChapter;
+
+            if (hasMultipleChapters && isNewChapter) {
+              // Salva bloco anterior se existir
+              if (currentBlock) {
+                textBlocks.push({ type: 'text', content: currentBlock.trim() });
+                currentBlock = '';
+              }
+
+              // Adiciona cabeçalho de capítulo
+              textBlocks.push({ 
+                type: 'chapter', 
+                content: `${BOOK_NAMES[selectedBook]} ${verse.chapter}` 
+              });
+              currentChapter = verse.chapter;
             }
-            
-            doc.text(line, margin, yPosition, { 
-              align: alignmentMap[pdfAlign],
-              maxWidth: maxWidth
-            });
-            yPosition += pdfLineHeight;
+
+            // Adiciona versículo ao bloco corrente
+            if (displaySettings.verseNumberFormat === 'full') {
+              currentBlock += verse.reference + ' ';
+            } else if (displaySettings.verseNumberFormat === 'number') {
+              currentBlock += toSuperscript(verse.verse) + ' ';
+            }
+            currentBlock += verse.text + ' ';
+          });
+
+          // Adiciona último bloco
+          if (currentBlock) {
+            textBlocks.push({ type: 'text', content: currentBlock.trim() });
+          }
+
+          // Renderiza blocos
+          textBlocks.forEach(block => {
+            if (block.type === 'chapter') {
+              if (yPosition + 10 > pageHeight - margin) {
+                doc.addPage();
+                yPosition = 20;
+              }
+
+              doc.setFont(undefined, 'bold');
+              doc.setFontSize(12);
+              doc.text(block.content, margin, yPosition);
+              doc.setFont(undefined, 'normal');
+              doc.setFontSize(pdfFontSize);
+              yPosition += 8;
+            } else {
+              const lines = doc.splitTextToSize(block.content, maxWidth);
+
+              lines.forEach(line => {
+                if (yPosition + pdfLineHeight > pageHeight - margin) {
+                  doc.addPage();
+                  yPosition = 20;
+                }
+
+                doc.text(line, margin, yPosition, { 
+                  align: alignmentMap[pdfAlign],
+                  maxWidth: maxWidth
+                });
+                yPosition += pdfLineHeight;
+              });
+
+              yPosition += 3; // Espaço após bloco de texto
+            }
           });
         } else {
           // Verso por verso
           verseList.forEach((verse, idx) => {
-            const isNewChapter = idx === 0 || verse.chapter !== verseList[idx - 1].chapter;
-            
+            const isNewChapter = verse.chapter !== currentChapter;
+
             if (hasMultipleChapters && isNewChapter) {
-              if (yPosition + 8 > pageHeight - margin) {
+              if (yPosition + 10 > pageHeight - margin) {
                 doc.addPage();
                 yPosition = 20;
               }
-              
+
               doc.setFont(undefined, 'bold');
               doc.setFontSize(12);
               doc.text(`${BOOK_NAMES[selectedBook]} ${verse.chapter}`, margin, yPosition);
               doc.setFont(undefined, 'normal');
               doc.setFontSize(pdfFontSize);
-              yPosition += 6;
+              yPosition += 8;
+              currentChapter = verse.chapter;
             }
-            
+
             if (yPosition + pdfLineHeight > pageHeight - margin) {
               doc.addPage();
               yPosition = 20;
             }
-            
-            const formattedVerse = formatVerseText(verse);
-            const lines = doc.splitTextToSize(formattedVerse, maxWidth);
-            
+
+            let verseText = '';
+            if (displaySettings.verseNumberFormat === 'full') {
+              verseText = verse.reference + '\n' + verse.text;
+            } else if (displaySettings.verseNumberFormat === 'number') {
+              verseText = toSuperscript(verse.verse) + ' ' + verse.text;
+            } else {
+              verseText = verse.text;
+            }
+
+            const lines = doc.splitTextToSize(verseText, maxWidth);
+
             lines.forEach(line => {
               if (yPosition + pdfLineHeight > pageHeight - margin) {
                 doc.addPage();
                 yPosition = 20;
               }
-              
+
               doc.text(line, margin, yPosition, { 
                 align: alignmentMap[pdfAlign],
                 maxWidth: maxWidth
               });
               yPosition += pdfLineHeight;
             });
-            
+
             yPosition += 2;
           });
         }
-        
+
         yPosition += 10;
       });
     }
