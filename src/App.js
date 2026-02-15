@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import './App.css';
-import jsPDF from 'jspdf';
+import pdfMake from 'pdfmake/build/pdfmake';
+import pdfFonts from 'pdfmake/build/vfs_fonts';
 import { Tooltip } from 'react-tooltip';
 
 import nvi from './data/pt-br/nvi.json';
 import acf from './data/pt-br/acf.json';
 import aa from './data/pt-br/aa.json';
+
+// Configura fontes para pdfMake
+// Configura fontes para pdfMake (compatibilidade com diferentes builds)
+const vfsSource = pdfFonts && (pdfFonts.pdfMake ? pdfFonts.pdfMake.vfs : pdfFonts.vfs);
+if (vfsSource) {
+  pdfMake.vfs = vfsSource;
+}
 
 const TRANSLATIONS = {
   pt: {
@@ -325,264 +333,208 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Formata verso para PDF (sem Unicode problemático)
+  const formatVerseForPDF = (verse) => {
+    let result = '';
+
+    if (displaySettings.verseNumberFormat === 'full') {
+      result += verse.reference + '\n';
+    } else if (displaySettings.verseNumberFormat === 'number') {
+      result += verse.verse + ' ';
+    }
+
+    result += verse.text;
+    return result;
+  };
+
   const exportToPDF = () => {
-    const doc = new jsPDF();
+    const pdfFontSize = displaySettings.pdfMode === 'optimized' ? 11 : displaySettings.fontSize * 0.75;
+    const pdfLineHeight = displaySettings.pdfMode === 'optimized' ? 1.3 : displaySettings.lineHeight;
     
-    let yPosition = 20;
-    const pageHeight = doc.internal.pageSize.height;
-    const margin = 20;
-    const maxWidth = 170;
-    
-    // Usar configurações otimizadas ou customizadas
-    const pdfFontSize = displaySettings.pdfMode === 'optimized' ? 11 : displaySettings.fontSize * 0.6;
-    const pdfLineHeight = displaySettings.pdfMode === 'optimized' ? 6 : displaySettings.lineHeight * 2.5;
-    const pdfAlign = displaySettings.pdfMode === 'optimized' ? 'left' : displaySettings.textAlign;
-    
-    // Mapeamento de alinhamento (jsPDF suporta left, center, right)
-    const alignmentMap = {
-      'left': 'left',
-      'center': 'center',
-      'justify': 'left' // jsPDF não suporta justify nativamente, usar left
+    let docDefinition = {
+      content: [],
+      defaultStyle: {
+        fontSize: pdfFontSize,
+        lineHeight: pdfLineHeight,
+        alignment: displaySettings.pdfMode === 'optimized' ? 'left' : displaySettings.textAlign
+      },
+      pageMargins: [40, 40, 40, 40]
     };
     
     if (displaySettings.layout === 'parallel') {
-      // Exportar layout paralelo
-      doc.setFontSize(12);
-      doc.setFont(undefined, 'bold');
-      
-      // Cabeçalhos
-      verses.forEach(({ translation }, idx) => {
-        const xPos = margin + (idx * 45);
-        doc.text(translation, xPos, yPosition, { align: 'center', maxWidth: 40 });
-      });
-      yPosition += 8;
-      
+      // Layout paralelo
       const firstVerseList = verses[0].verses;
       const hasMultipleChapters = firstVerseList.length > 0 && 
         firstVerseList[0].chapter !== firstVerseList[firstVerseList.length - 1].chapter;
       
-      doc.setFontSize(pdfFontSize);
-      doc.setFont(undefined, 'normal');
+      // Cabeçalhos das traduções
+      const headers = verses.map(v => ({
+        text: v.translation,
+        bold: true,
+        fontSize: 12,
+        alignment: 'center'
+      }));
       
-      // Versículos
-      firstVerseList.forEach((verse, versIdx) => {
-        const isNewChapter = versIdx === 0 || verse.chapter !== firstVerseList[versIdx - 1].chapter;
+      docDefinition.content.push({
+        columns: headers,
+        columnGap: 10,
+        margin: [0, 0, 0, 10]
+      });
+      
+      let currentChapter = null;
+      
+      // Versículos linha por linha
+      firstVerseList.forEach((verse, idx) => {
+        const isNewChapter = verse.chapter !== currentChapter;
         
         if (hasMultipleChapters && isNewChapter) {
-          if (yPosition + 10 > pageHeight - margin) {
-            doc.addPage();
-            yPosition = 20;
+          if (currentChapter !== null) {
+            docDefinition.content.push({ text: '', margin: [0, 5, 0, 5] });
           }
           
-          doc.setFont(undefined, 'bold');
-          doc.text(`${BOOK_NAMES[selectedBook]} ${verse.chapter}`, margin, yPosition);
-          doc.setFont(undefined, 'normal');
-          yPosition += 6;
-        }
-        
-        const maxLineHeight = verses.reduce((max, { verses: verseList }) => {
-          const currentVerse = verseList[versIdx];
-          let text = '';
-          
-          if (displaySettings.verseNumberFormat === 'full') {
-            text += currentVerse.reference + ' ';
-          } else if (displaySettings.verseNumberFormat === 'number') {
-            text += `${currentVerse.verse} `;
-          }
-          
-          text += currentVerse.text;
-          
-          const lines = doc.splitTextToSize(text, 42);
-          return Math.max(max, lines.length * (pdfLineHeight * 0.6));
-        }, 0);
-        
-        if (yPosition + maxLineHeight > pageHeight - margin) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        
-        let maxY = yPosition;
-        
-        verses.forEach(({ verses: verseList }, transIdx) => {
-          const currentVerse = verseList[versIdx];
-          const xPos = margin + (transIdx * 45);
-          let text = '';
-          
-          if (displaySettings.verseNumberFormat === 'full') {
-            text += currentVerse.reference + ' ';
-          } else if (displaySettings.verseNumberFormat === 'number') {
-            text += `${currentVerse.verse} `;
-          }
-          
-          text += currentVerse.text;
-          
-          const lines = doc.splitTextToSize(text, 42);
-          lines.forEach((line, lineIdx) => {
-            doc.text(line, xPos, yPosition + (lineIdx * pdfLineHeight * 0.6), { 
-              align: 'left',
-              maxWidth: 42
-            });
+          docDefinition.content.push({
+            text: `${BOOK_NAMES[selectedBook]} ${verse.chapter}`,
+            bold: true,
+            fontSize: 12,
+            alignment: 'center',
+            margin: [0, 10, 0, 5]
           });
           
-          maxY = Math.max(maxY, yPosition + (lines.length * pdfLineHeight * 0.6));
+          currentChapter = verse.chapter;
+        }
+        
+        // Monta colunas com versículos
+        const verseColumns = verses.map(({ verses: verseList }) => {
+          const currentVerse = verseList[idx];
+          let verseContent = [];
+          
+          if (displaySettings.verseNumberFormat === 'full') {
+            verseContent.push({ text: currentVerse.reference + ' ', bold: true, fontSize: pdfFontSize * 0.9 });
+          } else if (displaySettings.verseNumberFormat === 'number') {
+            verseContent.push({ text: currentVerse.verse.toString(), fontSize: pdfFontSize * 0.7, superscript: true });
+            verseContent.push({ text: ' ' });
+          }
+          
+          verseContent.push({ text: currentVerse.text });
+          
+          return { text: verseContent };
         });
         
-        yPosition = maxY + 2;
+        docDefinition.content.push({
+          columns: verseColumns,
+          columnGap: 10,
+          margin: [0, 3, 0, 3]
+        });
       });
     } else {
-      // Exportar layout de colunas
-      verses.forEach(({ translation, verses: verseList }) => {
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-
-        if (yPosition + 20 > pageHeight - margin) {
-          doc.addPage();
-          yPosition = 20;
+      // Layout de colunas
+      verses.forEach(({ translation, verses: verseList }, transIdx) => {
+        if (transIdx > 0) {
+          docDefinition.content.push({ text: '', pageBreak: 'before' });
         }
-
-        doc.text(translation, margin, yPosition);
-        yPosition += 10;
-
-        doc.setLineWidth(0.5);
-        doc.line(margin, yPosition, margin + maxWidth, yPosition);
-        yPosition += 8;
-
-        doc.setFontSize(pdfFontSize);
-        doc.setFont(undefined, 'normal');
-
+        
+        // Título da tradução
+        docDefinition.content.push({
+          text: translation,
+          bold: true,
+          fontSize: 14,
+          margin: [0, 0, 0, 5]
+        });
+        
+        docDefinition.content.push({
+          canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1 }],
+          margin: [0, 0, 0, 10]
+        });
+        
         const hasMultipleChapters = verseList.length > 0 && 
           verseList[0].chapter !== verseList[verseList.length - 1].chapter;
-
+        
         let currentChapter = null;
-
+        
         if (displaySettings.textFlow === 'continuous') {
-          // Texto corrido - monta com capítulos separados
-          let textBlocks = [];
-          let currentBlock = '';
-
-          verseList.forEach((verse, idx) => {
+          // Texto corrido
+          let paragraphContent = [];
+          
+          verseList.forEach((verse) => {
             const isNewChapter = verse.chapter !== currentChapter;
-
+            
             if (hasMultipleChapters && isNewChapter) {
-              // Salva bloco anterior se existir
-              if (currentBlock) {
-                textBlocks.push({ type: 'text', content: currentBlock.trim() });
-                currentBlock = '';
+              // Finaliza parágrafo anterior
+              if (paragraphContent.length > 0) {
+                docDefinition.content.push({
+                  text: paragraphContent,
+                  margin: [0, 0, 0, 5]
+                });
+                paragraphContent = [];
               }
-
+              
               // Adiciona cabeçalho de capítulo
-              textBlocks.push({ 
-                type: 'chapter', 
-                content: `${BOOK_NAMES[selectedBook]} ${verse.chapter}` 
+              docDefinition.content.push({
+                text: `${BOOK_NAMES[selectedBook]} ${verse.chapter}`,
+                bold: true,
+                fontSize: 12,
+                margin: [0, 10, 0, 5]
               });
+              
               currentChapter = verse.chapter;
             }
-
-            // Adiciona versículo ao bloco corrente
+            
+            // Adiciona versículo ao parágrafo
             if (displaySettings.verseNumberFormat === 'full') {
-              currentBlock += verse.reference + ' ';
+              paragraphContent.push({ text: verse.reference + ' ', bold: true, fontSize: pdfFontSize * 0.9 });
             } else if (displaySettings.verseNumberFormat === 'number') {
-              currentBlock += toSuperscript(verse.verse) + ' ';
+              paragraphContent.push({ text: verse.verse.toString(), fontSize: pdfFontSize * 0.7, superscript: true });
+              paragraphContent.push({ text: ' ' });
             }
-            currentBlock += verse.text + ' ';
+            
+            paragraphContent.push({ text: verse.text + ' ' });
           });
-
-          // Adiciona último bloco
-          if (currentBlock) {
-            textBlocks.push({ type: 'text', content: currentBlock.trim() });
+          
+          // Adiciona último parágrafo
+          if (paragraphContent.length > 0) {
+            docDefinition.content.push({
+              text: paragraphContent,
+              margin: [0, 0, 0, 5]
+            });
           }
-
-          // Renderiza blocos
-          textBlocks.forEach(block => {
-            if (block.type === 'chapter') {
-              if (yPosition + 10 > pageHeight - margin) {
-                doc.addPage();
-                yPosition = 20;
-              }
-
-              doc.setFont(undefined, 'bold');
-              doc.setFontSize(12);
-              doc.text(block.content, margin, yPosition);
-              doc.setFont(undefined, 'normal');
-              doc.setFontSize(pdfFontSize);
-              yPosition += 8;
-            } else {
-              const lines = doc.splitTextToSize(block.content, maxWidth);
-
-              lines.forEach(line => {
-                if (yPosition + pdfLineHeight > pageHeight - margin) {
-                  doc.addPage();
-                  yPosition = 20;
-                }
-
-                doc.text(line, margin, yPosition, { 
-                  align: alignmentMap[pdfAlign],
-                  maxWidth: maxWidth
-                });
-                yPosition += pdfLineHeight;
-              });
-
-              yPosition += 3; // Espaço após bloco de texto
-            }
-          });
         } else {
           // Verso por verso
-          verseList.forEach((verse, idx) => {
+          verseList.forEach((verse) => {
             const isNewChapter = verse.chapter !== currentChapter;
-
+            
             if (hasMultipleChapters && isNewChapter) {
-              if (yPosition + 10 > pageHeight - margin) {
-                doc.addPage();
-                yPosition = 20;
-              }
-
-              doc.setFont(undefined, 'bold');
-              doc.setFontSize(12);
-              doc.text(`${BOOK_NAMES[selectedBook]} ${verse.chapter}`, margin, yPosition);
-              doc.setFont(undefined, 'normal');
-              doc.setFontSize(pdfFontSize);
-              yPosition += 8;
+              docDefinition.content.push({
+                text: `${BOOK_NAMES[selectedBook]} ${verse.chapter}`,
+                bold: true,
+                fontSize: 12,
+                margin: [0, 10, 0, 5]
+              });
+              
               currentChapter = verse.chapter;
             }
-
-            if (yPosition + pdfLineHeight > pageHeight - margin) {
-              doc.addPage();
-              yPosition = 20;
-            }
-
-            let verseText = '';
+            
+            let verseContent = [];
+            
             if (displaySettings.verseNumberFormat === 'full') {
-              verseText = verse.reference + '\n' + verse.text;
+              verseContent.push({ text: verse.reference, bold: true, fontSize: pdfFontSize * 0.9 });
+              verseContent.push({ text: '\n' });
             } else if (displaySettings.verseNumberFormat === 'number') {
-              verseText = toSuperscript(verse.verse) + ' ' + verse.text;
-            } else {
-              verseText = verse.text;
+              verseContent.push({ text: verse.verse.toString(), fontSize: pdfFontSize * 0.7, superscript: true });
+              verseContent.push({ text: ' ' });
             }
-
-            const lines = doc.splitTextToSize(verseText, maxWidth);
-
-            lines.forEach(line => {
-              if (yPosition + pdfLineHeight > pageHeight - margin) {
-                doc.addPage();
-                yPosition = 20;
-              }
-
-              doc.text(line, margin, yPosition, { 
-                align: alignmentMap[pdfAlign],
-                maxWidth: maxWidth
-              });
-              yPosition += pdfLineHeight;
+            
+            verseContent.push({ text: verse.text });
+            
+            docDefinition.content.push({
+              text: verseContent,
+              margin: [0, 0, 0, 5]
             });
-
-            yPosition += 2;
           });
         }
-
-        yPosition += 10;
       });
     }
     
-    doc.save(`versiculos-${selectedBook || 'biblia'}.pdf`);
+    pdfMake.createPdf(docDefinition).download(`versiculos-${selectedBook || 'biblia'}.pdf`);
   };
 
   return (

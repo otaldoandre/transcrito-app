@@ -9,9 +9,11 @@
     "@testing-library/user-event": "^13.5.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",
+    "pdfmake": "^0.3.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-scripts": "5.0.1",
+    "react-tooltip": "^5.30.0",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
