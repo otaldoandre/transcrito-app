@@ -99,6 +99,10 @@ function App() {
   const [referenceStart, setReferenceStart] = useState('1:1');
   const [referenceEnd, setReferenceEnd] = useState('1:1');
   const [verses, setVerses] = useState([]);
+  const [searchHistory, setSearchHistory] = useState(() => {
+    const saved = localStorage.getItem('searchHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   // Display settings
   const [displaySettings, setDisplaySettings] = useState({
@@ -116,27 +120,27 @@ function App() {
     return { chapter, verse };
   };
 
-  const fetchVerses = () => {
-    if (!selectedBook) return;
+  const performSearch = ({ book, refStart, refEnd, translations, language }) => {
+    if (!book) return;
 
-    const start = parseReference(referenceStart);
-    const end = parseReference(referenceEnd);
+    const start = parseReference(refStart);
+    const end = parseReference(refEnd);
     const result = [];
-    
-    selectedTranslations.forEach(translationKey => {
-      const translation = TRANSLATIONS[selectedLanguage][translationKey];
-      const book = translation.find(b => b.abbrev === selectedBook);
-      
-      if (!book) return;
+
+    translations.forEach(translationKey => {
+      const translation = TRANSLATIONS[language][translationKey];
+      const bookObj = translation.find(b => b.abbrev === book);
+
+      if (!bookObj) return;
 
       const verseList = [];
-      
+
       if (start.chapter === end.chapter) {
-        const chapter = book.chapters[start.chapter - 1];
+        const chapter = bookObj.chapters[start.chapter - 1];
         for (let v = start.verse - 1; v < end.verse; v++) {
           if (chapter[v]) {
             verseList.push({
-              reference: `${BOOK_NAMES[selectedBook]} ${start.chapter}:${v + 1}`,
+              reference: `${BOOK_NAMES[book]} ${start.chapter}:${v + 1}`,
               text: chapter[v],
               chapter: start.chapter,
               verse: v + 1
@@ -145,19 +149,19 @@ function App() {
         }
       } else {
         for (let c = start.chapter; c <= end.chapter; c++) {
-          const chapter = book.chapters[c - 1];
+          const chapter = bookObj.chapters[c - 1];
           if (!chapter) continue;
 
           const isFirstChapter = c === start.chapter;
           const isLastChapter = c === end.chapter;
-          
+
           const startVerse = isFirstChapter ? start.verse - 1 : 0;
           const endVerse = isLastChapter ? end.verse : chapter.length;
 
           for (let v = startVerse; v < endVerse; v++) {
             if (chapter[v]) {
               verseList.push({
-                reference: `${BOOK_NAMES[selectedBook]} ${c}:${v + 1}`,
+                reference: `${BOOK_NAMES[book]} ${c}:${v + 1}`,
                 text: chapter[v],
                 chapter: c,
                 verse: v + 1
@@ -173,8 +177,50 @@ function App() {
       });
     });
 
+    // Atualiza estados visíveis
+    setSelectedBook(book);
+    setReferenceStart(refStart);
+    setReferenceEnd(refEnd);
+    setSelectedTranslations(translations);
     setVerses(result);
+
+    // Salva no histórico
+    const newSearch = {
+      id: Date.now(),
+      book,
+      bookName: BOOK_NAMES[book],
+      refStart,
+      refEnd,
+      translations: [...translations],
+      timestamp: new Date().toISOString()
+    };
+
+    const updatedHistory = [newSearch, ...searchHistory.filter(s => 
+      !(s.book === book && 
+        s.refStart === refStart && 
+        s.refEnd === refEnd &&
+        JSON.stringify(s.translations) === JSON.stringify(translations))
+    )].slice(0, 5);
+
+    setSearchHistory(updatedHistory);
+    localStorage.setItem('searchHistory', JSON.stringify(updatedHistory));
   };
+
+  const fetchVerses = () => performSearch({
+    book: selectedBook,
+    refStart: referenceStart,
+    refEnd: referenceEnd,
+    translations: selectedTranslations,
+    language: selectedLanguage
+  });
+
+  const loadSearch = (s) => performSearch({
+    book: s.book,
+    refStart: s.refStart,
+    refEnd: s.refEnd,
+    translations: s.translations,
+    language: selectedLanguage
+  });
 
   // Função auxiliar para formatar verso com base nas configurações de exibição
   // Converte número para superscript Unicode
@@ -632,6 +678,30 @@ function App() {
                 </label>
               ))}
             </div>
+          </div>
+
+          {/* Histórico de buscas */}
+          <div className="mb-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">1. Histórico de buscas</h4>
+            {searchHistory.length === 0 ? (
+              <p className="text-xs text-gray-500">Nenhuma busca recente.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {searchHistory.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => loadSearch(s)}
+                    className="text-left w-full p-2 rounded border hover:bg-gray-50 transition flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="font-medium">{s.bookName} {s.refStart}–{s.refEnd}</div>
+                      <div className="text-xs text-gray-500">{s.translations.join(', ')}</div>
+                    </div>
+                    <div className="text-xs text-gray-400">{new Date(s.timestamp).toLocaleString()}</div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Botão */}
