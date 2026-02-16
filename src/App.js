@@ -863,9 +863,9 @@ function App() {
 {/* LAYOUT: COLUNAS */}
 {displaySettings.layout === 'columns' && (
   <div className={`grid gap-6 ${
-    selectedTranslations.length === 1 ? 'grid-cols-1' :
-    selectedTranslations.length === 2 ? 'md:grid-cols-2' :
-    selectedTranslations.length === 3 ? 'md:grid-cols-3' :
+    verses.length === 1 ? 'grid-cols-1' :
+    verses.length === 2 ? 'md:grid-cols-2' :
+    verses.length === 3 ? 'md:grid-cols-3' :
     'md:grid-cols-2 lg:grid-cols-4'
   }`}>
     {verses.map(({ translation, verses: verseList }) => {
@@ -980,9 +980,9 @@ function App() {
   <div>
     {/* Cabeçalhos das traduções */}
     <div className={`grid gap-4 mb-4 ${
-      selectedTranslations.length === 1 ? 'grid-cols-1' :
-      selectedTranslations.length === 2 ? 'grid-cols-2' :
-      selectedTranslations.length === 3 ? 'grid-cols-3' :
+      verses.length === 1 ? 'grid-cols-1' :
+      verses.length === 2 ? 'grid-cols-2' :
+      verses.length === 3 ? 'grid-cols-3' :
       'grid-cols-4'
     }`}>
       {verses.map(({ translation }) => (
@@ -1012,9 +1012,9 @@ function App() {
             {/* Grid com versículos alinhados */}
             <div 
               className={`grid gap-4 items-start ${
-                selectedTranslations.length === 1 ? 'grid-cols-1' :
-                selectedTranslations.length === 2 ? 'grid-cols-2' :
-                selectedTranslations.length === 3 ? 'grid-cols-3' :
+                verses.length === 1 ? 'grid-cols-1' :
+                verses.length === 2 ? 'grid-cols-2' :
+                verses.length === 3 ? 'grid-cols-3' :
                 'grid-cols-4'
               }`}
               style={{
